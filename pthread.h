@@ -4,7 +4,8 @@
 #include <atomic>
 #include <exception>
 #include <iostream>
-#include <sys/syscall.h>
+#include <string.h>
+#include <unistd.h>
 
 class Worker {
 private:
@@ -37,18 +38,16 @@ public:
 		return true;
 	}
 	void stop_thread() {
-		int go_clean = 0;
 		if (thread_id_ != 0) {
-			++go_clean;
 			if (!thread_term_.load()) { thread_term_.store(true); }
 			if (pthread_join(thread_id_, nullptr) != 0) {
 				std::cerr << "[ERROR] Worker pthread_join : " << strerror(errno) << " "
 					<< "(Worker::stop_thread) "
 					<< "thread(PID : " << getpid() << ", TID : " << gettid() << ") " << '\n';
 			}
-			else { thread_id_ = 0; }
+			thread_id_ = 0;
 		}
-		if (go_clean != 0) cleanup();
+		cleanup();
 	}
 	bool get_thread_term() { return thread_term_.load();}
 private:

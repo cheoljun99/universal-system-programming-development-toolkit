@@ -27,15 +27,13 @@ public:
         return true;
     }
     void stop_thread() {
-        bool do_cleanup = false;
         if (thread_.joinable()) {
-            do_cleanup = true;
             if (!thread_term_.load()) {
                 thread_term_.store(true);
             }
             thread_.join();
         }
-        if (do_cleanup) cleanup();
+        cleanup();
     }
     bool get_thread_term() { return thread_term_.load();}
 private:
