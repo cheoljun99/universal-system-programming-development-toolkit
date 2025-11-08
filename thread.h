@@ -5,17 +5,17 @@
 #include <iostream>
 #include <cstring>
 
-class Worker {
+class Thread {
 private:
     std::thread thread_;
     std::atomic<bool> thread_term_;
 public:
-    Worker() : thread_term_(false) {}
-    ~Worker() { stop_thread(); }
+    Thread() : thread_term_(false) {}
+    ~Thread() { stop_thread(); }
     bool start_thread() {
         if (thread_.joinable()) {
             std::cerr << "[ERROR] already started thread "
-                << "(Worker::start_thread) "
+                << "(Thread::start_thread) "
                 << "thread(ID : " << std::this_thread::get_id() << ")\n";
             return false;
         }
@@ -23,7 +23,7 @@ public:
             cleanup();
             return false;
         }
-        thread_ = std::thread(&Worker::thread_func, this);
+        thread_ = std::thread(&Thread::thread_func, this);
         return true;
     }
     void stop_thread() {
@@ -39,7 +39,7 @@ public:
 private:
     bool setup();
     void cleanup();
-    static void thread_func(Worker* self) {
+    static void thread_func(Thread* self) {
         std::cout << "thread(ID : " << std::this_thread::get_id()<< ") start...\n";
         try { self->thread_loop(); }
         catch (const std::exception& e) {

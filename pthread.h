@@ -7,19 +7,17 @@
 #include <string.h>
 #include <unistd.h>
 
-class Worker {
+class Pthread {
 private:
 	pthread_t thread_id_ = 0;
 	std::atomic<bool> thread_term_;
 public:
-	Worker() : thread_term_(false) {}
-	~Worker() { stop_thread(); }
+	Pthread() : thread_term_(false) {}
+	~Pthread() { stop_thread(); }
 	bool start_thread() {
 		if (thread_id_ != 0) {
 			std::cerr << "[ERROR] already start thread "
-				<< "(Worker::start_thread) "
-				<< "thread(PID : " << getpid()
-				<< ", TID : " << gettid() << ")" << '\n';
+				<< "(Pthread::start_thread) " << '\n';
 			return false;
 		}
 		if (setup() == false) {
@@ -27,11 +25,9 @@ public:
 			return false;
 		}
 		if (pthread_create(&thread_id_, nullptr, thread_func, this) != 0) {
-			std::cerr << "[ERROR] pthread_create Worker : "
+			std::cerr << "[ERROR] pthread_create Pthread : "
 				<< strerror(errno)
-				<< " (Worker::start_thread) "
-				<< "thread(PID : " << getpid()
-				<< ", TID : " << gettid() << ")" << '\n';
+				<< "(Pthread::start_thread) " << '\n';
 			cleanup();
 			return false;
 		}
@@ -41,9 +37,8 @@ public:
 		if (thread_id_ != 0) {
 			if (!thread_term_.load()) { thread_term_.store(true); }
 			if (pthread_join(thread_id_, nullptr) != 0) {
-				std::cerr << "[ERROR] Worker pthread_join : " << strerror(errno) << " "
-					<< "(Worker::stop_thread) "
-					<< "thread(PID : " << getpid() << ", TID : " << gettid() << ") " << '\n';
+				std::cerr << "[ERROR] pthread_join : " << strerror(errno) << " "
+					<< "(Pthread::start_thread) " << '\n';
 			}
 			thread_id_ = 0;
 		}
@@ -54,11 +49,11 @@ private:
 	bool setup();
 	void cleanup();
 	static void* thread_func(void* arg) {
-		Worker* self = static_cast<Worker*>(arg);
+		Pthread* self = static_cast<Pthread*>(arg);
 		std::cout << "thread(PID :" << getpid() << ", TID :" << gettid() << ") start..." << '\n';
 		try { self->thread_loop(); }
 		catch (const std::exception& e) {
-			std::cerr << "[EXCEPT] thread exception: " << e.what() << '\n';
+			std::cerr << "[EXCEPT] pthread exception: " << e.what() << '\n';
 			self->thread_term_.store(true);
 		}
 		std::cout << "VPN server thread(PID :" << getpid() << ", TID :" << gettid() << ") stop!!!" << '\n';
