@@ -32,6 +32,7 @@
 #include <atomic>
 #include <vector>
 #include <memory>
+#include "sharedbuf.h"
 
 #define MAX_SLOT_SIZE 65535
 
@@ -40,14 +41,14 @@ struct Slot {
     uint8_t data_[MAX_SLOT_SIZE];
 };
 
-class SPSCBuf {
+class SPSCLockFreeBuf : public SharedBuf{
 private:
     std::unique_ptr<Slot[]> buf_;
     std::atomic<size_t> head_;
     std::atomic<size_t> tail_;
     size_t size_;
 public:
-    SPSCBuf(size_t size): head_(0),tail_(0){
+    SPSCLockFreeBuf(size_t size): head_(0),tail_(0){
         if (size < 2) size = 2;
         if ((size & (size - 1)) != 0) {// 2의 제곱이 아닐 경우 상위 제곱으로 보정
             size_t cap = 1;
@@ -58,7 +59,7 @@ public:
         size_ = size;
         buf_=std::make_unique<Slot[]>(size_);
     }
-    int32_t push(const uint8_t* data, size_t len) {
+    int32_t enqueue(const uint8_t* data, size_t len) override{
         if(len > MAX_SLOT_SIZE) len = MAX_SLOT_SIZE;
         size_t head = head_.load(std::memory_order_relaxed);
         size_t next = (head + 1) & (size_ - 1);
@@ -68,7 +69,7 @@ public:
         head_.store(next, std::memory_order_release);
         return static_cast<int32_t>(len);
     }
-    int32_t pop(uint8_t* out, size_t len){
+    int32_t dequeue(uint8_t* out, size_t len) override{
         size_t tail = tail_.load(std::memory_order_relaxed);
         if (tail == head_.load(std::memory_order_acquire)) return -1; // empty
         if(len > buf_[tail].len_) len = buf_[tail].len_;

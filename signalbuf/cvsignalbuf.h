@@ -1,7 +1,7 @@
 /*
- * CVNotifySPMC: Condition Variable 기반 Single Producer Multiple Consumer Queue Wrapper
+ * CVSignalbuf: Condition Variable 기반  Producer Consumer Queue Wrapper
  *
- * 본 구현은 SPMC 환경에서 std::condition_variable과 std::mutex를 사용하여
+ * 본 구현은 Producer Consumer 환경에서 std::condition_variable과 std::mutex를 사용하여
  * 컨슈머 스레드가 안전하게 데이터를 dequeue_wait 할 수 있도록 관리하는 래퍼 클래스이다.
  *
  * 핵심 원칙:
@@ -12,7 +12,7 @@
  *    flag 확인 기반으로 건너뛰기 때문에 컨슈머는 wait에 빠지지 않고 즉시 처리 가능하다.
  *
  * 특징:
- *  - 내부 SPMCBuf 원형 버퍼 사용, 단일 프로듀서 enqueue 지원
+ *  - 내부 공유가능한 원형 버퍼 사용, 단일 다중 프로듀서 enqueue 지원
  *  - flag 기반 wake/notify로 lost wakeup 방지
  *  - enqueue_wake 호출 시 깨어난 컨슈머가 즉시 데이터 처리
  *  - wake_all 호출 시 모든 컨슈머 동시 깨움 가능
@@ -32,19 +32,18 @@
 #include <mutex>
 #include <condition_variable>
 #include <cstdint>
-#include "SPMCBuf.h"
+#include "SignalBuf.h"
 
-class CVNotifySPMC {
-    SPMCBuf buf_;
+class CVSignalbuf : public SignalBuf{
     std::mutex mtx_;
     std::condition_variable cv_;
-    uint64_t flag_ = 0;
+    uint64_t flag_;
 
 public:
-    CVNotifySPMC(size_t size): buf_(size) {}
+    CVSignalbuf(std::unique_ptr<SharedBuf> shared_buf) : SignalBuf(std::move(shared_buf)), flag_(0) {}
 
-    int32_t enqueue_wake(const uint8_t* data, size_t len) {
-        int32_t n = buf_.enqueue(data, len);
+    int32_t enqueue_wake(const uint8_t* data, size_t len) override {
+        int32_t n = shared_buf_->enqueue(data, len);
         if (n >= 0) {
             std::unique_lock<std::mutex> lock(mtx_);
             flag_++;
@@ -52,7 +51,7 @@ public:
             cv_.notify_one();
         }
         else{
-            std::cout << "spmc_buf_ is pull " << '\n';
+            std::cout << "shared_buf_ is pull " << '\n';
             std::unique_lock<std::mutex> lock(mtx_);
             flag_++;
             lock.unlock();
@@ -61,15 +60,15 @@ public:
         return n; // -1: full
     }
 
-    void wake_all() {
+    void wake_all() override {
         std::unique_lock<std::mutex> lock(mtx_);
         flag_++;
         lock.unlock();
         cv_.notify_all();
     }
 
-    int32_t dequeue_wait(uint8_t* out, size_t len) {
-        int32_t n = buf_.dequeue(out, len);
+    int32_t dequeue_wait(uint8_t* out, size_t len) override {
+        int32_t n = shared_buf_->dequeue(out, len);
         if (n > 0) return n;
         uint64_t expected = flag_;
         std::unique_lock<std::mutex> lock(mtx_);

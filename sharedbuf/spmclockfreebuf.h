@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <cassert>
 #include <memory>
+#include "sharedbuf.h"
 
 #define MAX_NODE_SIZE 65535
 
@@ -42,14 +43,14 @@ struct alignas(64) Node {
     uint8_t data_[MAX_NODE_SIZE];
 };
 
-class SPMCBuf {
+class SPMCLockFreeBuf : public SharedBuf{
 private:
     size_t size_;
     std::unique_ptr<Node[]> buf_;
     alignas(64) std::atomic<size_t> head_;
     alignas(64) std::atomic<size_t> tail_;
 public:
-    SPMCBuf(size_t size): head_(0), tail_(0)
+    SPMCLockFreeBuf(size_t size): head_(0), tail_(0)
     {
         if (size < 2) size = 2;
         // 2의 제곱이 아닐 경우 상위 제곱으로 보정
@@ -64,7 +65,7 @@ public:
         for (size_t i = 0; i < size_; ++i) buf_[i].seq.store(i, std::memory_order_relaxed);
     }
     // 단일 producer만 호출해야 함
-    int32_t enqueue(const uint8_t* data, size_t len) {
+    int32_t enqueue(const uint8_t* data, size_t len) override{
         if(len > MAX_NODE_SIZE) len = MAX_NODE_SIZE;
         size_t t = tail_.load(std::memory_order_relaxed);
         Node& slot = buf_[t & (size_ - 1)];
@@ -79,7 +80,7 @@ public:
         return static_cast<int32_t>(len);
     }
     // 복수 consumer 가능
-    int32_t dequeue(uint8_t* out, size_t len) {
+    int32_t dequeue(uint8_t* out, size_t len) override{
         while (true) {
             size_t h = head_.load(std::memory_order_relaxed);
             Node& slot = buf_[h & (size_ - 1)];

@@ -30,6 +30,7 @@
 #include <cstring>
 #include <memory>
 #include <cassert>
+#include "sharedbuf.h"
 
 #define MAX_NODE_SIZE 65535
 
@@ -39,14 +40,14 @@ struct alignas(64) Node {
     uint8_t data_[MAX_NODE_SIZE];
 };
 
-class MPSCBuf {
+class MPSCLockFreeBuf : public SharedBuf{
 private:
     size_t size_;
     std::unique_ptr<Node[]> buf_;
     alignas(64) std::atomic<size_t> head_; // single consumer
     alignas(64) std::atomic<size_t> tail_; // multi producer
 public:
-    MPSCBuf(size_t size) : head_(0), tail_(0)
+    MPSCLockFreeBuf(size_t size) : head_(0), tail_(0)
     {
         if (size < 2) size = 2;
         // 2의 제곱으로 보정
@@ -62,7 +63,7 @@ public:
     }
 
     // 다중 producer 안전
-    int32_t enqueue(const uint8_t* data, size_t len) {
+    int32_t enqueue(const uint8_t* data, size_t len) override {
         if (len > MAX_NODE_SIZE)
             len = MAX_NODE_SIZE;
 
@@ -100,7 +101,7 @@ public:
     }
 
     // 단일 consumer 전용
-    int32_t dequeue(uint8_t* out, size_t len) {
+    int32_t dequeue(uint8_t* out, size_t len) override {
         size_t h = head_.load(std::memory_order_relaxed);
         Node& slot = buf_[h & (size_ - 1)];
         size_t seq = slot.seq.load(std::memory_order_acquire);

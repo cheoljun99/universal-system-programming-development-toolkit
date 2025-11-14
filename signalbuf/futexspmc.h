@@ -1,7 +1,7 @@
 /*
- * FutexSPMC: Futex 기반 Single Producer Multiple Consumer Queue Wrapper
+ * FutexSignalBuf: Futex 기반 Producer Consumer Queue Wrapper
  *
- * 본 구현은 SPMC 환경에서 Linux futex 시스템 콜을 사용하여
+ * 본 구현은 Producer Consumer 환경에서 Linux futex 시스템 콜을 사용하여
  * 컨슈머 스레드가 대기(wait) 및 깨움(wake)을 효율적으로 처리하는 래퍼 클래스이다.
  *
  * 핵심 원칙:
@@ -16,7 +16,7 @@
  *  - 컨슈머는 데이터를 읽기 위해 dequeue_wait 수행 가능 (데이터 없으면 wait, 데이터 있으면 deque 후 return)
  *
  * 특징:
- *  - 내부 SPMCBuf 원형 버퍼 사용, 단일 프로듀서 enqueue 지원
+ *  - 내부 공유 가능 원형 버퍼 사용, 단일 다중 프로듀서 enqueue 지원
  *  - atomic flag + futex wake/wait 로 lost wakeup 방지
  *  - lock-free 구조로 여러 컨슈머 경쟁 가능
  *
@@ -39,36 +39,35 @@
 #include <unistd.h>
 #include <cstdint>
 #include <climits>
-#include "SPMCBuf.h"
+#include "SignalBuf.h"
 
-class FutexSPMC {
-    SPMCBuf spmc_buf_;
+class FutexSignalBuf : public SignalBuf{
     alignas(4) atomic_int flag_;
 
 public:
-    FutexSPMC(size_t size) : spmc_buf_(size), flag_(0) {}
+    FutexSignalBuf(std::unique_ptr<SharedBuf> shared_buf) : SignalBuf(std::move(shared_buf)), flag_(0) {}
 
-    int32_t enqueue_wake(const uint8_t* data, size_t len) {
-        int32_t n = spmc_buf_.enqueue(data, len);
+    int32_t enqueue_wake(const uint8_t* data, size_t len) override{
+        int32_t n = shared_buf_->enqueue(data, len);
         if (n >=0) {
             atomic_store_explicit(&flag_, 1, memory_order_relaxed);
             syscall(SYS_futex, &flag_, FUTEX_WAKE, 1, nullptr, nullptr, 0);
         }
         else{
-            std::cout << "spmc_buf_ is pull " << '\n';
+            std::cout << "shared_buf_ is pull " << '\n';
             atomic_store_explicit(&flag_, 1, memory_order_relaxed);
             syscall(SYS_futex, &flag_, FUTEX_WAKE, 1, nullptr, nullptr, 0);
         }
         return n; // -1: full
     }
 
-    void wake_all() {
+    void wake_all() override{
         atomic_store_explicit(&flag_, 1, memory_order_relaxed);
         syscall(SYS_futex, &flag_, FUTEX_WAKE, INT_MAX, nullptr, nullptr, 0);
     }
 
-    int32_t dequeue_wait(uint8_t* out, size_t len) {
-        int32_t n = spmc_buf_.dequeue(out, len);
+    int32_t dequeue_wait(uint8_t* out, size_t len) override{
+        int32_t n = shared_buf_->dequeue(out, len);
         if (n >= 0) return n;
         int expected = 1;
         if (!atomic_compare_exchange_strong(&flag_, &expected, 0, memory_order_relaxed, memory_order_relaxed)) {

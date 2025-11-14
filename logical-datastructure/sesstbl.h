@@ -192,7 +192,7 @@ public:
 		out->reserve(fwd_sess_map_.size());
 		size_t i = 0;
 		for (std::unordered_map<FwdSessKey, std::shared_ptr<SessVal>>::iterator fwd_it = fwd_sess_map_.begin();fwd_it != fwd_sess_map_.end(); ++fwd_it) {
-			out->push_back(fwd_it->second);
+			out->emplace_back(fwd_it->second);
 		}
 		rw_spin_lock.unlock_shared();
 		return out->size();
