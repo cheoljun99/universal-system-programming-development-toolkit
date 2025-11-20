@@ -1,4 +1,4 @@
-#include "util.h"
+#include "osutil.h"
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -24,9 +24,9 @@
 
 #if defined(_WIN32) || defined(_WIN64)
     //Windows 함수
-#else
+#elif defined(__linux__)
     //Linux 함수
-    int exec_cmd_util(const std::vector<std::string>& args) {
+    int  osutil::exec_cmd_util(const std::vector<std::string>& args) {
         pid_t pid;
         std::vector<char*> argv;
         for (const std::string& arg : args)
@@ -42,7 +42,7 @@
         return -1;
     }
 
-    bool set_ofld(const char* iface, __u32 cmd, const char* name, bool enable) {
+    bool  osutil::set_ofld(const char* iface, __u32 cmd, const char* name, bool enable) {
         int fd = socket(AF_INET, SOCK_DGRAM, 0);
         if (fd < 0) { perror("[ERROR] socket"); return false; }
 
@@ -62,7 +62,7 @@
         return true;
     }
 
-    bool reg_sig_hdl(int sig, void (*hdl_func)(int)) {
+    bool  osutil::reg_sig_hdl(int sig, void (*hdl_func)(int)) {
         struct sigaction sa;
         memset(&sa, 0, sizeof(sa));
         sa.sa_handler = hdl_func;
@@ -75,7 +75,7 @@
         return true;
     }
 
-    uint32_t get_nic_ip(char * nic) {
+    uint32_t  osutil::get_nic_ip(char * nic) {
         struct ifreq ifr;
         int fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
         if (fd < 0) { perror("[ERROR] socket"); return 0; }
