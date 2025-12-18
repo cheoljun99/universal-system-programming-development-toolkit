@@ -35,7 +35,7 @@
 
 #if defined(_WIN32) || defined(_WIN64)
     //Windows 함수
-    SOCKET get_tcp_socket_fd(Ip source_ip, uint16_t source_port) {
+    SOCKET OsUtil::get_tcp_socket(Ip source_ip, uint16_t source_port) {
         SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
         if (sock == INVALID_SOCKET) {
             std::cout << "[ERROR] Socket creation failed : " << WSAGetLastError()<<" "<<"\n";
@@ -52,7 +52,7 @@
         }
         return sock;
     }
-    SOCKET get_udp_socket_fd(Ip source_ip, uint16_t source_port) {
+    SOCKET OsUtil::get_udp_socket(Ip source_ip, uint16_t source_port) {
         SOCKET sock = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock == INVALID_SOCKET) {
             std::cout << "[ERROR] Socket creation failed : " << WSAGetLastError() << " " << "\n";
@@ -68,6 +68,24 @@
             return INVALID_SOCKET;
         }
         return sock;
+    }
+    int OsUtil::close_socket(SOCKET socket) {
+        if (socket != INVALID_SOCKET) {
+            if (closesocket(socket) == SOCKET_ERROR) {
+                std::cerr << "[ERROR] socket(" << socket << ") fail to closesocket: " << WSAGetLastError() <<" " << '\n';
+                return -1;
+            }
+        }
+        return 0;
+    }
+    int OsUtil::close_handle(HANDLE handle) {
+        if (handle != INVALID_HANDLE_VALUE && handle != NULL) {
+            if (CloseHandle(handle) == FALSE) {
+                std::cerr << "[ERROR] handle(" << handle << ") fail to CloseHandle: " << GetLastError() << " " << '\n';
+                return -1;
+            }
+        }
+        return 0;
     }
 
 #elif defined(__linux__)

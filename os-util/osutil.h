@@ -22,8 +22,10 @@
     #endif
 namespace OsUtil {
     #if defined(_WIN32) || defined(_WIN64)
-        SOCKET get_tcp_socket_fd(Ip source_ip, uint16_t source_port);
-        SOCKET get_udp_socket_fd(Ip source_ip, uint16_t source_port);
+        SOCKET get_tcp_socket(Ip source_ip, uint16_t source_port);
+        SOCKET get_udp_socket(Ip source_ip, uint16_t source_port);
+        int close_socket(SOCKET socket);
+        int close_handle(HANDLE handle);
     #elif defined(__linux__)
         // Utility 명령어 사용 함수
         int exec_cmd_util(const std::vector<std::string>& args);
